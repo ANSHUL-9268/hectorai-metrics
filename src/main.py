@@ -491,6 +491,83 @@ def write_to_output_sheet(client, metrics_df):
     print("[Write] Output sheet updated successfully!")
 
 
+from googleapiclient.discovery import build
+
+def write_to_google_doc(credentials_source, metrics_df):
+    """
+    Writes the metrics as a formatted table into a Google Doc
+    so Claude can read it via Google Drive connector.
+    """
+    print("[Doc] Writing metrics to Google Doc ...")
+    
+    SCOPES = [
+        "https://www.googleapis.com/auth/documents",
+        "https://www.googleapis.com/auth/drive",
+    ]
+    
+    creds_json = os.environ.get("GOOGLE_CREDENTIALS")
+    if creds_json:
+        creds_dict = json.loads(creds_json)
+        credentials = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
+    else:
+        credentials = Credentials.from_service_account_file(
+            "service_account.json", scopes=SCOPES
+        )
+    
+    service = build("docs", "v1", credentials=credentials)
+    doc_id = config.OUTPUT_DOC["id"]
+    
+    # Get current doc content to clear it
+    doc = service.documents().get(documentId=doc_id).execute()
+    content = doc.get("body", {}).get("content", [])
+    
+    # Find the end index to delete all content
+    if len(content) > 1:
+        end_index = content[-1]["endIndex"] - 1
+        if end_index > 1:
+            requests = [{"deleteContentRange": {
+                "range": {"startIndex": 1, "endIndex": end_index}
+            }}]
+            service.documents().batchUpdate(
+                documentId=doc_id, body={"requests": requests}
+            ).execute()
+    
+    # Build the text content
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S UTC")
+    lines = [f"HectorAI P&L Metrics Dashboard\nLast Updated: {timestamp}\n\n"]
+    
+    # Group by category
+    for cat in config.CATEGORIES + ["GRAND TOTAL"]:
+        cat_data = metrics_df[metrics_df["Category"] == cat]
+        if cat_data.empty:
+            continue
+        
+        lines.append(f"\n{'='*60}\n{cat}\n{'='*60}\n")
+        lines.append(f"{'Month':<20} {'Revenue':>12} {'Overhead':>12} {'Payroll':>12} {'Op.Income':>12} {'OI%':>8} {'OH%':>8} {'Pay%':>8}\n")
+        lines.append("-" * 100 + "\n")
+        
+        for _, row in cat_data.iterrows():
+            lines.append(
+                f"{row['Month']:<20} "
+                f"{row['Net_Revenue']:>12} "
+                f"{row['Overhead_Cost']:>12} "
+                f"{row['Payroll_Cost']:>12} "
+                f"{row['Operating_Income']:>12} "
+                f"{row['Operating_Income_Pct']:>8} "
+                f"{row['Overhead_Cost_Pct']:>8} "
+                f"{row['Payroll_Cost_Pct']:>8}\n"
+            )
+    
+    full_text = "".join(lines)
+    
+    # Insert the new content
+    requests = [{"insertText": {"location": {"index": 1}, "text": full_text}}]
+    service.documents().batchUpdate(
+        documentId=doc_id, body={"requests": requests}
+    ).execute()
+    
+    print(f"[Doc] Google Doc updated successfully!")
+
 # ============================================================
 # 8. MAIN ENTRY POINT
 # ============================================================
@@ -529,6 +606,8 @@ def main():
     
     # Step 6: Write to output sheet
     write_to_output_sheet(client, metrics_df)
+
+    write_to_google_doc(client, metrics_df)
     
     print("=" * 60)
     print("  DONE — All metrics updated successfully!")

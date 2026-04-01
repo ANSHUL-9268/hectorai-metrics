@@ -3,7 +3,7 @@ name: Daily Metrics Update
 on:
   # Runs every day at 18:30 UTC (midnight IST)
   schedule:
-    - cron: '30 18 * * *'
+    - cron: '30 0 * * *'
 
   # Manual trigger from GitHub UI
   workflow_dispatch:

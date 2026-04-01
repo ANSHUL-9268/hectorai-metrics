@@ -37,6 +37,13 @@ OUTPUT_SHEET = {
     "worksheet": "Metrics",
 }
 
+OUTPUT_DOC = {
+    "id": "1hC0E1sp1BxRaOCiDC-zlqoBzJFykinEvbYYSY89-2Xo",
+    "name": "Metrics Doc for Claude",
+}
+
+
+
 # ============================================================
 # THE 6 REVENUE / COST CATEGORIES
 # ============================================================
